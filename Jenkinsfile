@@ -32,14 +32,7 @@ pipeline {
             }
         }
 
-        stage('Run Migrations') {
-            steps {
-                script {
-                    // Run Laravel migrations inside the app container
-                    sh 'docker exec -it laravel_app php artisan migrate'
-                }
-            }
-        }
+        
 
     }
 
