@@ -13,7 +13,17 @@ pipeline {
                 git branch: 'main', url: 'https://github.com/MohamedRach/devops-project'
             }
         }
-
+        stage('OWASP Dependency-Check Vulnerabilities') {
+      steps {
+        dependencyCheck additionalArguments: ''' 
+                    -o './'
+                    -s './'
+                    -f 'ALL' 
+                    --prettyPrint''', odcInstallation: 'OWASP Dependency-Check Vulnerabilities'
+        
+        dependencyCheckPublisher pattern: 'dependency-check-report.xml'
+      }
+    }
         stage('Build Docker Images') {
             steps {
                 script {
@@ -31,15 +41,9 @@ pipeline {
                 }
             }
         }
+        
 
-        stage('Run Migrations') {
-            steps {
-                script {
-                    // Run Laravel migrations inside the app container
-                    sh 'docker exec -it laravel_app php artisan migrate'
-                }
-            }
-        }
+        
 
     }
 
