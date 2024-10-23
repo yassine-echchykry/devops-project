@@ -22,10 +22,19 @@ pipeline {
             steps {
                 script {
                     // Create report directories
-                    sh '''
-                        mkdir -p reports/gitleaks
-                        mkdir -p reports/dependency-check
-                        mkdir -p reports/zap
+                   sh '''
+                        # Create main reports directory
+                        mkdir -p ${WORKSPACE}/reports
+                        
+                        # Create subdirectories with proper permissions
+                        cd ${WORKSPACE}/reports
+                        mkdir -p gitleaks dependency-check zap
+                        
+                        # Set permissions recursively
+                        chmod -R 777 ${WORKSPACE}/reports
+                        
+                        # List directories to verify creation
+                        ls -la ${WORKSPACE}/reports
                     '''
                     
                     // Clone repository
