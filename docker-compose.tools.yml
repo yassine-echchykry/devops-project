@@ -5,7 +5,7 @@ services:
     image: zricethezav/gitleaks:latest
     container_name: gitleaks
     volumes:
-      - ./source-code:/src
+      - .:/src
       - ./reports/gitleaks:/gitleaks
     working_dir: /src
     entrypoint: [""]
@@ -15,7 +15,7 @@ services:
     image: owasp/dependency-check:latest
     container_name: dependency-check
     volumes:
-      - ./source-code:/src
+      - .:/src
       - ./reports/dependency-check:/reports
     restart: unless-stopped
 
