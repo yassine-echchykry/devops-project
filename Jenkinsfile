@@ -56,7 +56,7 @@ pipeline {
                                 docker rm -f gitleaks || true
                                 
                                 # Start Gitleaks scan
-                                docker-compose up gitleaks
+                                docker-compose -f docker-compose.tools.yml up gitleaks
                                 
                                 # Check if report was generated
                                 if [ -f reports/gitleaks/report.json ]; then
@@ -88,7 +88,7 @@ pipeline {
                             docker rm -f dependency-check || true
                             
                             # Run Dependency Check
-                            docker-compose up dependency-check
+                            docker-compose -f docker-compose.tools.yml up dependency-check
                         '''
                     } catch (Exception e) {
                         unstable('Dependency check found vulnerabilities or failed')
@@ -106,7 +106,7 @@ pipeline {
                             docker rm -f owasp-zap || true
                             
                             # Start ZAP
-                            docker-compose up -d owasp-zap
+                            docker-compose -f docker-compose.tools.yml up -d owasp-zap
                             
                             # Wait for ZAP to start
                             sleep 30
