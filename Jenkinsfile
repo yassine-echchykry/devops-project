@@ -2,50 +2,58 @@ pipeline {
     agent any
 
     environment {
-        // Define any environment variables you need here
-        COMPOSE_FILE = 'docker-compose.yml'
+        REPORT_DIR = "${WORKSPACE}/reports"
+        SONARQUBE_URL = "http://localhost:9000"
+        SONARQUBE_SCANNER = 'SonarQubeScanner'
     }
 
     stages {
-        stage('Checkout Code') {
+        stage('Clone Repository') {
             steps {
-                // Checkout the repository
                 git branch: 'main', url: 'https://github.com/MohamedRach/devops-project'
             }
         }
-        stage('OWASP Dependency-Check Vulnerabilities') {
-      steps {
-        dependencyCheck additionalArguments: ''' 
-                    -o './'
-                    -s './'
-                    -f 'ALL' 
-                    --prettyPrint''', odcInstallation: 'OWASP Dependency-Check Vulnerabilities'
-        
-        dependencyCheckPublisher pattern: 'dependency-check-report.xml'
-      }
-    }
-        stage('Build Docker Images') {
+
+
+        stage('Run Gitleaks') {
             steps {
                 script {
-                    // Build the Docker images using docker-compose
-                    sh 'docker-compose -f ${COMPOSE_FILE} build'
+                    // Run Gitleaks using the tools-specific docker-compose file
+                    sh 'docker-compose -f docker-compose.tools.yml run gitleaks detect --source=/src --report-format=json --report-path=/gitleaks/report.json'
                 }
             }
         }
 
-        stage('Start Services') {
+        stage('Run OWASP Dependency-Check') {
             steps {
                 script {
-                    // Start the services (app, postgres, nginx) in detached mode
-                    sh 'docker-compose -f ${COMPOSE_FILE} up -d'
+                    // Run Dependency-Check using the tools-specific docker-compose file
+                    sh 'docker-compose -f docker-compose.tools.yml run dependency-check /usr/share/dependency-check/bin/dependency-check.sh --project myproject --scan /src --format ALL --out /reports'
                 }
             }
         }
-        
 
-        
+        stage('Run OWASP ZAP') {
+            steps {
+                script {
+                    // Run ZAP in daemon mode and perform a quick scan using tools-specific docker-compose file
+                    sh '''
+                    docker-compose -f docker-compose.tools.yml up -d owasp-zap
+                    sleep 10
+                    docker-compose -f docker-compose.tools.yml exec owasp-zap zap-cli quick-scan --self-contained http://your-application-to-test.com
+                    docker-compose -f docker-compose.tools.yml stop owasp-zap
+                    '''
+                }
+            }
+        }
+
 
     }
 
+    post {
+        always {
+            archiveArtifacts artifacts: 'reports/**', allowEmptyArchive: true
+        }
+    }
 }
 
