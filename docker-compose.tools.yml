@@ -7,7 +7,13 @@ services:
     volumes:
       - .:/path # Mount current directory to /path inside the container
       - ./reports/gitleaks:/gitleaks # Save the report in the ./reports/gitleaks folder
-    entrypoint: ["/bin/sh", "-c"] # We will run the full command through the shell in the pipeline
+    entrypoint: [
+        "gitleaks",
+        "detect",
+        "--source=/path",
+        "--report-format=json",
+        "--report-path=/gitleaks/report.json",
+      ] # We will run the full command through the shell in the pipeline
     restart: unless-stopped
 
   dependency-check:
