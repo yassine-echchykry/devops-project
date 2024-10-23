@@ -50,30 +50,44 @@ pipeline {
             steps {
                 script {
                     try {
+                        // Clean up any existing containers
+                        sh 'docker-compose down || true'
+                        
+                        // Run Gitleaks with a timeout
                         timeout(time: 5, unit: 'MINUTES') {
-                            sh '''
-                                # Remove existing container if it exists
-                                docker rm -f gitleaks || true
-                                
-                                # Start Gitleaks scan
-                                docker-compose -f docker-compose.tools.yml up gitleaks
-                                
-                                # Check if report was generated
-                                if [ -f reports/gitleaks/report.json ]; then
-                                    echo "Gitleaks scan completed successfully"
-                                    # Check if any secrets were found
-                                    if [ "$(cat reports/gitleaks/report.json | grep -c '"Description":')" -gt 0 ]; then
-                                        echo "Potential secrets found!"
-                                        exit 1
+                            def gitleaksExitCode = sh(
+                                script: '''
+                                    # Run Gitleaks and capture its output
+                                    docker-compose -f docker-compose.tools.yml run --rm gitleaks || true
+                                    
+                                    # Check if report exists and contains leaks
+                                    if [ -f reports/gitleaks/report.json ]; then
+                                        if grep -q "finding" reports/gitleaks/report.json; then
+                                            echo "Secrets found in the codebase"
+                                            exit 1
+                                        else
+                                            echo "No secrets found"
+                                            exit 0
+                                        fi
+                                    else
+                                        echo "Gitleaks failed to generate report"
+                                        exit 2
                                     fi
-                                else
-                                    echo "Gitleaks scan failed - no report generated"
-                                    exit 2
-                                fi
-                            '''
+                                ''',
+                                returnStatus: true
+                            )
+                            
+                            if (gitleaksExitCode == 1) {
+                                unstable('Gitleaks found potential secrets')
+                            } else if (gitleaksExitCode == 2) {
+                                error('Gitleaks scan failed')
+                            }
                         }
                     } catch (Exception e) {
-                        unstable('Gitleaks scan found potential secrets or failed')
+                        error("Gitleaks stage failed: ${e.message}")
+                    } finally {
+                        // Always clean up
+                        sh 'docker-compose down || true'
                     }
                 }
             }
