@@ -14,7 +14,6 @@ services:
         "--report-format=json",
         "--report-path=/gitleaks/report.json",
       ] # We will run the full command through the shell in the pipeline
-    restart: unless-stopped
 
   dependency-check:
     image: owasp/dependency-check:latest
@@ -22,7 +21,6 @@ services:
     volumes:
       - .:/src
       - ./reports/dependency-check:/reports
-    restart: unless-stopped
 
   owasp-zap:
     image: zaproxy/zap-stable
@@ -31,7 +29,6 @@ services:
       - "8080:8080"
     volumes:
       - ./reports/zap:/zap/reports
-    restart: unless-stopped
 
   sonarqube:
     image: sonarqube:latest
