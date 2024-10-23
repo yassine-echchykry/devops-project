@@ -9,7 +9,7 @@ pipeline {
         GITLEAKS_VERSION = 'v8.18.1'
         DEPCHECK_VERSION = '9.0.9'
         ZAP_VERSION = '2.14.0'
-        APP_URL = params.APP_URL ?: 'http://localhost:8080'
+        APP_URL = 'http://localhost:8080'
     }
     
     options {
