@@ -1,7 +1,10 @@
 # Use the official PHP image as a base
 FROM php:8.2-fpm
 
-# Install dependencies and PHP extensions
+# Install dependencies and PHP extensions as root
+USER root
+
+# Update the package list and install necessary packages
 RUN apt-get update && apt-get install -y \
     libpq-dev \
     nodejs \
@@ -24,7 +27,7 @@ RUN composer install
 RUN npm install
 RUN npm run build
 
-# Set permissions
+# Set permissions for storage and cache directories
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Switch to a non-root user
