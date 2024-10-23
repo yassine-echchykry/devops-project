@@ -19,9 +19,9 @@ pipeline {
             steps {
                 script {
                     // Run Gitleaks using the tools-specific docker-compose file
-                    sh '''
-            docker-compose -f docker-compose.tools.yml up gitleaks
-            '''            }
+                    sh ''' docker-compose -f docker-compose.tools.yml up gitleaks'''
+                }
+            }
         }
 
         stage('Run OWASP Dependency-Check') {
