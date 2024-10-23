@@ -19,8 +19,9 @@ pipeline {
             steps {
                 script {
                     // Run Gitleaks using the tools-specific docker-compose file
-                    sh 'docker-compose -f docker-compose.tools.yml run gitleaks detect --source=/src --report-format=json --report-path=/gitleaks/report.json'
-                }
+                    sh '''
+            docker-compose -f docker-compose.tools.yml run gitleaks gitleaks detect --source="/path" --report-format=json --report-path="/gitleaks/report.json"
+            '''                }
             }
         }
 
