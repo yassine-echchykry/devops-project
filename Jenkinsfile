@@ -45,16 +45,6 @@ pipeline {
             }
         }
         
-        stage('Start Infrastructure') {
-            steps {
-                script {
-                    // Start SonarQube and database
-                    sh 'docker-compose up -d db sonarqube'
-                    // Wait for SonarQube to be ready
-                    sh 'while ! curl -s http://localhost:9000 >/dev/null; do sleep 5; done'
-                }
-            }
-        }
         
         stage('Secret Scanning') {
             steps {
@@ -136,22 +126,6 @@ pipeline {
             }
         }
         
-        stage('SonarQube Analysis') {
-            steps {
-                script {
-                    withSonarQubeEnv('SonarQube') {
-                        sh '''
-                            sonar-scanner \
-                                -Dsonar.projectKey=devops-project \
-                                -Dsonar.sources=. \
-                                -Dsonar.host.url=${SONARQUBE_URL} \
-                                -Dsonar.login=admin \
-                                -Dsonar.password=admin
-                        '''
-                    }
-                }
-            }
-        }
     }
     
     post {
