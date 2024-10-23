@@ -20,6 +20,7 @@ pipeline {
                 script {
                     // Run Gitleaks using the tools-specific docker-compose file
                     sh ''' docker-compose -f docker-compose.tools.yml up gitleaks'''
+                    sleep 20
                 }
             }
         }
