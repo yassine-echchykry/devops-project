@@ -18,6 +18,8 @@ services:
   dependency-check:
     image: owasp/dependency-check:latest
     container_name: dependency-check
+    environment:
+      - NVD_API_KEY=31d8236b-6ed4-469b-b88f-93010467da4b
     command: [
       "--scan", "/src",   # Path to the code directory in the container
       "--format", "HTML", # Output format
