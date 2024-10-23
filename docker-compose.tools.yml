@@ -18,6 +18,12 @@ services:
   dependency-check:
     image: owasp/dependency-check:latest
     container_name: dependency-check
+    command: [
+      "--scan", "/src",   # Path to the code directory in the container
+      "--format", "HTML", # Output format
+      "--project", "MyProject", # Project name
+      "--out", "/report"  # Output directory
+    ]
     volumes:
       - .:/src
       - ./reports/dependency-check:/reports
