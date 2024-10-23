@@ -22,7 +22,7 @@ services:
       "--scan", "/src",   # Path to the code directory in the container
       "--format", "HTML", # Output format
       "--project", "MyProject", # Project name
-      "--out", "/report" , # Output directory
+      "--out", "/reports" , # Output directory
       "--nvdApiKey", "31d8236b-6ed4-469b-b88f-93010467da4b"
     ]
     volumes:
