@@ -1,0 +1,59 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: laravel-blue
+  labels:
+    app: laravel
+    version: blue
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: laravel
+      version: blue
+  template:
+    metadata:
+      labels:
+        app: laravel
+        version: blue
+    spec:
+      containers:
+      - name: laravel-app
+        image: php:8.2-fpm
+        ports:
+        - containerPort: 80
+        env:
+        - name: DB_CONNECTION
+          value: "pgsql"
+        - name: DB_HOST
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: DB_HOST
+        - name: DB_PORT
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: DB_PORT
+        - name: DB_DATABASE
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: DB_DATABASE
+        - name: DB_USERNAME
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: DB_USERNAME
+        - name: DB_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: db-secret
+              key: DB_PASSWORD
+        volumeMounts:
+        - name: app-volume
+          mountPath: /var/www/html
+      volumes:
+      - name: app-volume
+        persistentVolumeClaim:
+          claimName: app-pvc
