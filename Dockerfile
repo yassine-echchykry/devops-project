@@ -9,6 +9,8 @@ RUN apt-get update && apt-get install -y \
     libpq-dev \
     nodejs \
     npm \
+    zip \
+    unzip \
     && docker-php-ext-install pdo pdo_pgsql
 
 # Set the working directory
