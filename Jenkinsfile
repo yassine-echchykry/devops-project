@@ -1,173 +1,154 @@
 pipeline {
     agent any
-    
-    environment {
-        REPORT_DIR = "${WORKSPACE}/reports"
-        SONARQUBE_URL = "http://localhost:9000"
-        SONARQUBE_SCANNER = 'SonarQubeScanner'
-        // Add version control for tools
-        GITLEAKS_VERSION = 'v8.18.1'
-        DEPCHECK_VERSION = '9.0.9'
-        ZAP_VERSION = '2.14.0'
-        APP_URL = 'http://localhost:8080'
+    parameters {
+        choice(
+            choices: ["Baseline", "APIS", "Full"],
+            description: 'Type of scan that is going to perform inside the container',
+            name: 'SCAN_TYPE'
+        )
+        string(
+            defaultValue: "http://localhost:8080",  // Utilisez l'URL de l'application exposée
+            description: 'Target URL to scan',
+            name: 'TARGET'
+        )
+        booleanParam(
+            defaultValue: true,
+            description: 'Parameter to know if wanna generate report.',
+            name: 'GENERATE_REPORT'
+        )
     }
-    
-    options {
-        timeout(time: 1, unit: 'HOURS')
-        buildDiscarder(logRotator(numToKeepStr: '10'))
-    }
-    
     stages {
-        stage('Prepare Environment') {
+        stage('Clone GitHub Repository') {
             steps {
                 script {
-                    // Create report directories
-                   sh '''
-                        # Create main reports directory
-                        mkdir -p ${WORKSPACE}/reports
-                        
-                        # Create subdirectories with proper permissions
-                        cd ${WORKSPACE}/reports
-                        mkdir -p gitleaks dependency-check zap
-                        
-                        # Set permissions recursively
-                        chmod -R 777 ${WORKSPACE}/reports
-                        
-                        # List directories to verify creation
-                        ls -la ${WORKSPACE}/reports
-                    '''
-                    
-                    // Clone repository
-                    git branch: 'main', 
-                        url: 'https://github.com/MohamedRach/devops-project',
-                        changelog: true
+                    echo "Cloning GitHub Repository..."
+                    git url: 'https://github.com/MohamedRach/devops-project', branch: 'main'
                 }
             }
         }
-        
-        
-        stage('Secret Scanning') {
+        stage('Build Docker Images') {
             steps {
                 script {
-                    try {
-                        // Clean up any existing containers
-                        sh 'docker-compose down || true'
-                        
-                        // Run Gitleaks with a timeout
-                        timeout(time: 5, unit: 'MINUTES') {
-                            def gitleaksExitCode = sh(
-                                script: '''
-                                    # Run Gitleaks and capture its output
-                                    docker-compose -f docker-compose.tools.yml run --rm gitleaks || true
-                                    
-                                    # Check if report exists and contains leaks
-                                    if [ -f reports/gitleaks/report.json ]; then
-                                        if grep -q "finding" reports/gitleaks/report.json; then
-                                            echo "Secrets found in the codebase"
-                                            exit 1
-                                        else
-                                            echo "No secrets found"
-                                            exit 0
-                                        fi
-                                    else
-                                        echo "Gitleaks failed to generate report"
-                                        exit 2
-                                    fi
-                                ''',
-                                returnStatus: true
-                            )
-                            
-                            if (gitleaksExitCode == 1) {
-                                unstable('Gitleaks found potential secrets')
-                            } else if (gitleaksExitCode == 2) {
-                                error('Gitleaks scan failed')
-                            }
-                        }
-                    } catch (Exception e) {
-                        error("Gitleaks stage failed: ${e.message}")
-                    } finally {
-                        // Always clean up
-                        sh 'docker-compose down || true'
+                    echo "Building Docker images using docker-compose..."
+                    sh 'docker-compose build'
+                }
+            }
+        }
+        stage('Start Services') {
+            steps {
+                script {
+                    echo "Starting services using docker-compose..."
+                    sh 'docker-compose up -d'
+                }
+            }
+        }
+        stage('List Docker Images') {
+            steps {
+                script {
+                    echo "Listing Docker images..."
+                    sh 'docker images --format "{{.Repository}}:{{.Tag}}" > docker-images.txt'
+                }
+            }
+        }
+        stage('Scan Docker Images') {
+            steps {
+                script {
+                    def imageName = sh(script: "docker images --format '{{.Repository}}:{{.Tag}}' | head -n 1", returnStdout: true).trim()
+                    if (imageName) {
+                        echo "Scanning Docker image: ${imageName}"
+                        sh "trivy image --output trivy-docker-report.txt --debug ${imageName}"
+                    } else {
+                        error "No Docker images found to scan."
                     }
                 }
             }
         }
-        
-        stage('Dependency Scanning') {
+
+        stage('Pipeline Info') {
             steps {
                 script {
-                    try {
-                        sh '''
-                            # Remove existing container if it exists
-                            docker rm -f dependency-check || true
-                            
-                            # Run Dependency Check
-                            docker-compose -f docker-compose.tools.yml up dependency-check
-                        '''
-                    } catch (Exception e) {
-                        unstable('Dependency check found vulnerabilities or failed')
+                    echo "<--Parameter Initialization-->"
+                    echo """
+                    The current parameters are:
+                        Scan Type: ${params.SCAN_TYPE}
+                        Target: ${params.TARGET}
+                        Generate report: ${params.GENERATE_REPORT}
+                    """
+                }
+            }
+        }
+        stage('Setting up OWASP ZAP docker container') {
+            steps {
+                script {
+                    echo "Pulling up last OWASP ZAP container --> Start"
+                    sh 'docker pull zaproxy/zap-stable'
+                    echo "Starting container --> Start"
+                    sh 'docker run -dt --network="host" --name owasp zaproxy/zap-stable /bin/bash'
+                }
+            }
+        }
+        stage('Prepare wrk directory') {
+            when {
+                expression {
+                    return params.GENERATE_REPORT
+                }
+            }
+            steps {
+                script {
+                    sh 'docker exec owasp mkdir /zap/wrk'
+                }
+            }
+        }
+        stage('Scanning target on owasp container') {
+            steps {
+                script {
+                    def scan_type = params.SCAN_TYPE
+                    def target = params.TARGET
+                    if (scan_type == "Baseline") {
+                        sh "docker exec owasp zap-baseline.py -t ${target} -x report.xml -I"
+                    } else if (scan_type == "APIS") {
+                        sh "docker exec owasp zap-api-scan.py -t ${target} -x report.xml -I"
+                    } else if (scan_type == "Full") {
+                        sh "docker exec owasp zap-full-scan.py -t ${target} -I"
+                    } else {
+                        echo "Invalid scan type."
                     }
                 }
             }
         }
-        
-        stage('Dynamic Application Security Testing') {
+        stage('Copy Report to Workspace') {
             steps {
                 script {
-                    try {
-                        sh '''
-                            # Remove existing container if it exists
-                            docker rm -f owasp-zap || true
-                            
-                            # Start ZAP
-                            docker-compose -f docker-compose.tools.yml up -d owasp-zap
-                            
-                            # Wait for ZAP to start
-                            sleep 30
-                            
-                            # Run ZAP scan
-                            docker exec owasp-zap zap-baseline.py -t ${APP_URL} -r zap-report.html
-                            
-                            # Copy report from container
-                            docker cp owasp-zap:/zap/wrk/zap-report.html reports/zap/
-                        '''
-                    } catch (Exception e) {
-                        unstable('ZAP scan found vulnerabilities or failed')
-                    } finally {
-                        sh 'docker-compose stop owasp-zap'
-                    }
+                    sh 'docker cp owasp:/zap/wrk/report.xml ${WORKSPACE}/report.xml'
                 }
             }
         }
-        
+        stage('OWASP Dependency-Check Vulnerabilities') {
+            steps {
+                dependencyCheck additionalArguments: ''' 
+                    -o './'
+                    -s './'
+                    -f 'ALL' 
+                    --prettyPrint''', odcInstallation: 'OWASP Dependency-Check Vulnerabilities'
+
+                dependencyCheckPublisher pattern: 'dependency-check-report.xml'
+            }
+        }
     }
-    
     post {
         always {
-            // Archive reports
-            archiveArtifacts artifacts: 'reports/**/*', 
-                          allowEmptyArchive: true,
-                          fingerprint: true
-            
-            // Clean up containers
+            echo "Removing container"
             sh '''
-                docker-compose down -v
-                docker system prune -f
+                docker stop owasp
+                docker rm owasp
             '''
-            
-            // Send notification
-            emailext (
-                subject: "Security Scan: ${currentBuild.currentResult} - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: """
-                    Check console output at ${env.BUILD_URL}
-                    Reports are available in build artifacts.
-                """,
-                recipientProviders: [[$class: 'DevelopersRecipientProvider']]
-            )
+            archiveArtifacts artifacts: '*/report.xml, */dependency-check-report.xml, */trivy--report.txt', allowEmptyArchive: true
         }
-        
-        cleanup {
-            cleanWs()
+        success {
+            echo "Pipeline completed successfully!"
+        }
+        failure {
+            echo "Pipeline failed!"
         }
     }
 }
